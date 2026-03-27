@@ -1,0 +1,159 @@
+/* PedalNation - Global Styles */
+/* Tailwind CSS 4 entry point */
+@import "tailwindcss";
+
+/* Fonts */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/* Design System Custom Properties */
+@layer base {
+  :root {
+    /* Light mode colors */
+    --background: #FAFAFA;
+    --surface: #FFFFFF;
+    --surface-elevated: #F4F4F5;
+    --border: #E4E4E7;
+
+    --accent: #FF6B35;
+    --accent-hover: #FF8555;
+    --accent-muted: rgba(255, 107, 53, 0.15);
+
+    --text-primary: #09090B;
+    --text-secondary: #71717A;
+    --text-muted: #A1A1AA;
+
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --info: #3B82F6;
+
+    /* shadcn-svelte compatible tokens */
+    --card: var(--surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--accent);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--surface-elevated);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface-elevated);
+    --muted-foreground: var(--text-muted);
+    --destructive: var(--error);
+    --destructive-foreground: #FFFFFF;
+    --ring: var(--accent);
+    --radius: 8px;
+    --input: var(--border);
+  }
+
+  .dark {
+    /* Dark mode colors (default) */
+    --background: #0F0F0F;
+    --surface: #1A1A1A;
+    --surface-elevated: #242424;
+    --border: #2A2A2A;
+
+    --accent: #FF6B35;
+    --accent-hover: #FF8555;
+    --accent-muted: rgba(255, 107, 53, 0.15);
+
+    --text-primary: #F5F5F5;
+    --text-secondary: #A0A0A0;
+    --text-muted: #606060;
+
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --error: #EF4444;
+    --info: #3B82F6;
+
+    /* shadcn-svelte compatible tokens */
+    --card: var(--surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--accent);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--surface-elevated);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface-elevated);
+    --muted-foreground: var(--text-muted);
+    --destructive: var(--error);
+    --destructive-foreground: #FFFFFF;
+    --ring: var(--accent);
+    --radius: 8px;
+    --input: var(--border);
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, pre, kbd, samp {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+  }
+}
+
+/* Tailwind CSS 4 theme extension */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* shadcn-svelte Tailwind token mappings */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius: var(--radius);
+}
