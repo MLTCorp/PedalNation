@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { selectedNodeData, rotateSelectedNode, deleteSelectedNodes } from '$lib/stores/canvasStore';
+	import { selectedNodeData, selectedNodeCount, rotateSelectedNode, rotateAllSelected, deleteSelectedNodes } from '$lib/stores/canvasStore';
+	import { generateFallbackLinks, type FallbackAffiliateLink } from '$lib/utils/affiliate';
 
 	interface AffiliateLink {
 		id: string;
@@ -8,7 +9,10 @@
 		affiliate_code: string | null;
 		is_primary: boolean;
 		is_active: boolean;
+		is_fallback?: false;
 	}
+
+	type DisplayLink = AffiliateLink | FallbackAffiliateLink;
 
 	interface PedalDetail {
 		id: string;
@@ -28,6 +32,7 @@
 	// Current fetched pedal data
 	let pedalDetail = $state<PedalDetail | null>(null);
 	let affiliateLinks = $state<AffiliateLink[]>([]);
+	let displayLinks = $state<DisplayLink[]>([]);
 	let loadingDetail = $state(false);
 	let currentPedalId = $state<string | null>(null);
 	let buyingLinkId = $state<string | null>(null);
@@ -41,6 +46,7 @@
 		if (!nodeData) {
 			pedalDetail = null;
 			affiliateLinks = [];
+			displayLinks = [];
 			currentPedalId = null;
 			return;
 		}
@@ -53,6 +59,7 @@
 		loadingDetail = true;
 		pedalDetail = null;
 		affiliateLinks = [];
+		displayLinks = [];
 
 		fetch(`/api/pedals/${pedalId}`)
 			.then((res) => res.ok ? res.json() : Promise.reject(res))
@@ -60,12 +67,26 @@
 				if (currentPedalId === pedalId) {
 					pedalDetail = data.pedal;
 					affiliateLinks = data.affiliateLinks ?? [];
+					// Use DB links if available, otherwise generate fallback search links
+					if (affiliateLinks.length > 0) {
+						displayLinks = affiliateLinks;
+					} else {
+						displayLinks = generateFallbackLinks(
+							nodeData.brand,
+							nodeData.name
+						);
+					}
 				}
 			})
 			.catch(() => {
 				if (currentPedalId === pedalId) {
 					pedalDetail = null;
 					affiliateLinks = [];
+					// Even on error, show fallback links
+					displayLinks = generateFallbackLinks(
+						nodeData.brand,
+						nodeData.name
+					);
 				}
 			})
 			.finally(() => {
@@ -75,17 +96,26 @@
 			});
 	});
 
-	async function handleBuyClick(link: AffiliateLink) {
-		if (!pedalDetail) return;
-		buyingLinkId = link.id;
+	async function handleBuyClick(link: DisplayLink) {
+		if (!pedalDetail && !$selectedNodeData) return;
+
+		// Fallback links open directly without tracking
+		if ('is_fallback' in link && link.is_fallback) {
+			window.open(link.url, '_blank', 'noopener,noreferrer');
+			return;
+		}
+
+		// DB links go through click tracking
+		const dbLink = link as AffiliateLink;
+		buyingLinkId = dbLink.id;
 
 		try {
 			const res = await fetch('/api/clicks', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					affiliate_link_id: link.id,
-					pedal_id: pedalDetail.id,
+					affiliate_link_id: dbLink.id,
+					pedal_id: pedalDetail?.id ?? $selectedNodeData?.pedal_id,
 					source: 'builder'
 				})
 			});
@@ -94,10 +124,10 @@
 				const { redirect_url } = await res.json();
 				window.open(redirect_url, '_blank', 'noopener,noreferrer');
 			} else {
-				window.open(link.url, '_blank', 'noopener,noreferrer');
+				window.open(dbLink.url, '_blank', 'noopener,noreferrer');
 			}
 		} catch {
-			window.open(link.url, '_blank', 'noopener,noreferrer');
+			window.open(dbLink.url, '_blank', 'noopener,noreferrer');
 		} finally {
 			buyingLinkId = null;
 		}
@@ -132,15 +162,51 @@
 		return rows;
 	}
 
-	// Primary link
-	let primaryLink = $derived(affiliateLinks.find((l) => l.is_primary) ?? affiliateLinks[0] ?? null);
-	let secondaryLinks = $derived(affiliateLinks.filter((l) => l !== primaryLink));
+	// Primary link — for DB links use is_primary flag, for fallbacks Amazon is first
+	let primaryLink: DisplayLink | null = $derived.by(() => {
+		if (displayLinks.length === 0) return null;
+		const dbPrimary = displayLinks.find((l) => 'is_primary' in l && (l as AffiliateLink).is_primary);
+		return dbPrimary ?? displayLinks[0] ?? null;
+	});
+	let secondaryLinks: DisplayLink[] = $derived(displayLinks.filter((l) => l !== primaryLink));
 </script>
 
 <div class="info-panel-outer">
 {#key fadeKey}
 <div class="info-panel-inner">
-	{#if $selectedNodeData}
+	{#if $selectedNodeCount > 1}
+		<!-- Multi-select view -->
+		<div class="info-content">
+			<div class="multi-select-header">
+				<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" stroke-width="1.5">
+					<rect x="3" y="3" width="7" height="7" rx="1"></rect>
+					<rect x="14" y="3" width="7" height="7" rx="1"></rect>
+					<rect x="3" y="14" width="7" height="7" rx="1"></rect>
+					<rect x="14" y="14" width="7" height="7" rx="1" stroke-dasharray="3 2"></rect>
+				</svg>
+				<span class="multi-select-count">{$selectedNodeCount} pedais selecionados</span>
+			</div>
+
+			<div class="info-actions multi-actions">
+				<button class="info-action-btn" onclick={() => rotateAllSelected()}>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M23 4v6h-6"></path>
+						<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+					</svg>
+					Girar todos
+				</button>
+				<button class="info-action-btn danger" onclick={() => { deleteSelectedNodes(); }}>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polyline points="3 6 5 6 21 6"></polyline>
+						<path d="M19 6l-1 14H6L5 6"></path>
+						<path d="M10 11v6M14 11v6"></path>
+						<path d="M9 6V4h6v2"></path>
+					</svg>
+					Remover todos
+				</button>
+			</div>
+		</div>
+	{:else if $selectedNodeData}
 		<div class="info-content">
 			<!-- Image -->
 			<div class="info-image-bg">
@@ -203,7 +269,7 @@
 
 			<!-- Affiliate Links -->
 			<div class="info-buy-section">
-				{#if affiliateLinks.length > 0}
+				{#if displayLinks.length > 0}
 					<!-- Primary buy button -->
 					{#if primaryLink}
 						<button
@@ -211,7 +277,7 @@
 							onclick={() => handleBuyClick(primaryLink!)}
 							disabled={buyingLinkId !== null}
 						>
-							{#if buyingLinkId === primaryLink.id}
+							{#if 'id' in primaryLink && buyingLinkId === primaryLink.id}
 								<div class="spinner-sm-white"></div>
 							{:else}
 								<!-- Cart icon -->
@@ -642,5 +708,27 @@
 
 	@keyframes spin {
 		to { transform: rotate(360deg); }
+	}
+
+	/* ── Multi-select ──────────────────────────────────────────────────── */
+	.multi-select-header {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		padding: 24px 14px 16px;
+		border-bottom: 1px solid #222;
+	}
+
+	.multi-select-count {
+		font-size: 14px;
+		font-weight: 600;
+		color: #f5f5f5;
+	}
+
+	.multi-actions {
+		padding: 12px 14px;
+		flex-direction: column;
+		gap: 8px;
 	}
 </style>

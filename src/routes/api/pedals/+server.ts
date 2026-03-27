@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const category = url.searchParams.get('category');
 	const brand = url.searchParams.get('brand');
 	const q = url.searchParams.get('q');
-	const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10), 500);
+	const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10), 10000);
 	const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10), 0);
 
 	let query = supabase

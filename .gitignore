@@ -60,3 +60,8 @@ pnpm-lock.yaml
 .sincron-auto/
 .claude/
 sincron-auto-state.json
+
+# SQL import data
+pedal-nation-v0/
+
+.vercel

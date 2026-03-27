@@ -80,6 +80,11 @@
 	// ── Node types ────────────────────────────────────────────────────────────
 	const nodeTypes = { pedalNode: PedalNode, boardNode: BoardNode };
 
+	// ── Mobile detection ──────────────────────────────────────────────────────
+	let isMobile = $state(false);
+	let mobileLeftOpen = $state(false);
+	let mobileRightOpen = $state(false);
+
 	// ── State ─────────────────────────────────────────────────────────────────
 	let pedals: Pedal[] = $state([]);
 	let loading = $state(true);
@@ -240,7 +245,7 @@
 	async function loadPedals() {
 		loading = true;
 		try {
-			const res = await fetch('/api/pedals?limit=200');
+			const res = await fetch('/api/pedals?limit=10000');
 			if (res.ok) {
 				const data = await res.json();
 				pedals = data.pedals ?? [];
@@ -617,7 +622,7 @@
 		addPedalNode(data, { x: flowX, y: flowY });
 	}
 
-	function addPedalToCenter(pedal: PedalData) {
+	function addPedalToCenter(pedal: Pedal) {
 		const vp = $viewport;
 		const centerX = ((canvasElWidth || 800) / 2 - vp.x) / vp.zoom;
 		const centerY = ((canvasElHeight || 600) / 2 - vp.y) / vp.zoom;
@@ -634,7 +639,7 @@
 		};
 
 		addPedalNode(data, { x: centerX, y: centerY });
-		pushHistory();
+		pushHistory($nodes, $edges);
 	}
 
 	function handleCanvasDragLeave(e: DragEvent) {
@@ -746,12 +751,19 @@
 		const data = node.data as unknown as PedalNodeData;
 		selectedNodeId.set(node.id);
 		selectedNodeData.set(data);
-		rightCollapsed = false;
+		if (isMobile) {
+			mobileRightOpen = true;
+		} else {
+			rightCollapsed = false;
+		}
 	}
 
 	function handlePaneClick() {
 		selectedNodeId.set(null);
 		selectedNodeData.set(null);
+		if (isMobile) {
+			mobileRightOpen = false;
+		}
 	}
 
 	// ── Canvas controls ───────────────────────────────────────────────────────
@@ -1279,6 +1291,12 @@
 
 	// ── Lifecycle ─────────────────────────────────────────────────────────────
 	onMount(() => {
+		// Mobile detection
+		const mq = window.matchMedia('(max-width: 768px)');
+		isMobile = mq.matches;
+		const onMqChange = (e: MediaQueryListEvent) => { isMobile = e.matches; };
+		mq.addEventListener('change', onMqChange);
+
 		loadPedals();
 		document.addEventListener('keydown', handleKeydown);
 		document.addEventListener('keydown', handleGlobalKeydown);
@@ -1332,6 +1350,7 @@
 		}
 
 		return () => {
+			mq.removeEventListener('change', onMqChange);
 			document.removeEventListener('keydown', handleKeydown);
 			document.removeEventListener('keydown', handleGlobalKeydown);
 			document.removeEventListener('keyup', handleKeyup);
@@ -1387,8 +1406,18 @@
 {/if}
 
 <div class="builder-root">
+	<!-- ── Mobile Overlay Backdrop ──────────────────────────────────────── -->
+	{#if isMobile && (mobileLeftOpen || mobileRightOpen)}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="mobile-backdrop" onclick={() => { mobileLeftOpen = false; mobileRightOpen = false; }}></div>
+	{/if}
+
 	<!-- ── Left Panel ───────────────────────────────────────────────────── -->
-	<aside class="panel panel-left" style="width: {leftWidth}px; min-width: {MIN_PANEL}px; max-width: {MAX_PANEL}px;">
+	<aside
+		class="panel panel-left {isMobile ? 'mobile-drawer' : ''} {isMobile && mobileLeftOpen ? 'mobile-open' : ''} {isMobile && !mobileLeftOpen ? 'mobile-closed' : ''}"
+		style={isMobile ? '' : `width: ${leftWidth}px; min-width: ${MIN_PANEL}px; max-width: ${MAX_PANEL}px;`}
+	>
 
 		<!-- Tab bar -->
 		<div class="panel-tabs">
@@ -1612,14 +1641,16 @@
 		{/if}
 	</aside>
 
-	<!-- Left resize handle -->
-	<button
-		class="resize-handle resize-handle-left {draggingLeft ? 'dragging' : ''}"
-		aria-label="Redimensionar painel esquerdo — duplo-clique para restaurar"
-		onmousedown={startLeftResize}
-		ontouchstart={startLeftResize}
-		ondblclick={restoreLeftWidth}
-	></button>
+	<!-- Left resize handle (desktop only) -->
+	{#if !isMobile}
+		<button
+			class="resize-handle resize-handle-left {draggingLeft ? 'dragging' : ''}"
+			aria-label="Redimensionar painel esquerdo — duplo-clique para restaurar"
+			onmousedown={startLeftResize}
+			ontouchstart={startLeftResize}
+			ondblclick={restoreLeftWidth}
+		></button>
+	{/if}
 
 	<!-- ── Canvas Area ────────────────────────────────────────────────────── -->
 	<main
@@ -1961,8 +1992,8 @@
 		</div>
 	</main>
 
-	<!-- Right resize handle (only visible when right panel is expanded) -->
-	{#if !rightCollapsed}
+	<!-- Right resize handle (desktop only, when expanded) -->
+	{#if !isMobile && !rightCollapsed}
 		<button
 			class="resize-handle resize-handle-right {draggingRight ? 'dragging' : ''}"
 			aria-label="Redimensionar painel direito — duplo-clique para restaurar"
@@ -1974,15 +2005,15 @@
 
 	<!-- ── Right Panel: Info Panel ───────────────────────────────────────── -->
 	<aside
-		class="panel panel-right {rightCollapsed ? 'collapsed' : ''}"
-		style={rightCollapsed ? 'width: 0; min-width: 0; overflow: hidden;' : `width: ${rightWidth}px; min-width: ${MIN_PANEL}px; max-width: ${MAX_PANEL}px;`}
+		class="panel panel-right {isMobile ? 'mobile-bottom-sheet' : ''} {isMobile && mobileRightOpen ? 'mobile-open' : ''} {isMobile && !mobileRightOpen ? 'mobile-closed' : ''} {!isMobile && rightCollapsed ? 'collapsed' : ''}"
+		style={isMobile ? '' : rightCollapsed ? 'width: 0; min-width: 0; overflow: hidden;' : `width: ${rightWidth}px; min-width: ${MIN_PANEL}px; max-width: ${MAX_PANEL}px;`}
 	>
-		{#if !rightCollapsed}
+		{#if isMobile ? mobileRightOpen : !rightCollapsed}
 			<div class="panel-header">
 				<span class="panel-title">Informações</span>
 				<button
 					class="panel-close"
-					onclick={() => (rightCollapsed = true)}
+					onclick={() => { if (isMobile) mobileRightOpen = false; else rightCollapsed = true; }}
 					aria-label="Fechar painel"
 				>
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1996,6 +2027,32 @@
 			</div>
 		{/if}
 	</aside>
+
+	<!-- ── Mobile Bottom Toolbar ──────────────────────────────────────── -->
+	{#if isMobile}
+		<nav class="mobile-toolbar">
+			<button class="mobile-tb-btn {mobileLeftOpen && activeTab === 'pedals' ? 'active' : ''}" onclick={() => { activeTab = 'pedals'; mobileLeftOpen = !mobileLeftOpen; mobileRightOpen = false; }} aria-label="Catálogo de Pedais">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"></rect><circle cx="12" cy="14" r="3"></circle><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+				<span>Pedais</span>
+			</button>
+			<button class="mobile-tb-btn {mobileLeftOpen && activeTab === 'boards' ? 'active' : ''}" onclick={() => { activeTab = 'boards'; mobileLeftOpen = !mobileLeftOpen; mobileRightOpen = false; }} aria-label="Boards">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+				<span>Boards</span>
+			</button>
+			<button class="mobile-tb-btn" onclick={() => toggleSnapGrid()} aria-label="Grid">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={$snapGridEnabled ? '#ff6b35' : 'currentColor'} stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+				<span>Grid</span>
+			</button>
+			<button class="mobile-tb-btn" onclick={() => showLayersPanel = !showLayersPanel} aria-label="Layers">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+				<span>Layers</span>
+			</button>
+			<button class="mobile-tb-btn" onclick={handleExport} aria-label="Exportar">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+				<span>Export</span>
+			</button>
+		</nav>
+	{/if}
 </div>
 
 <!-- ── Toast Notification ─────────────────────────────────────────────────── -->
@@ -3987,5 +4044,108 @@
 	}
 	.pedal-card {
 		position: relative;
+	}
+
+	/* ── Mobile Styles ─────────────────────────────────────────────────── */
+	.mobile-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		z-index: 40;
+	}
+
+	.panel-left.mobile-drawer {
+		position: fixed;
+		top: 0;
+		left: 0;
+		bottom: 56px;
+		width: 300px !important;
+		min-width: 0 !important;
+		max-width: 85vw !important;
+		z-index: 50;
+		transition: transform 0.25s ease;
+	}
+
+	.panel-left.mobile-drawer.mobile-open {
+		transform: translateX(0);
+	}
+
+	.panel-left.mobile-drawer.mobile-closed {
+		transform: translateX(-100%);
+		pointer-events: none;
+	}
+
+	.panel-right.mobile-bottom-sheet {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 56px;
+		width: 100% !important;
+		min-width: 0 !important;
+		max-width: none !important;
+		max-height: 50vh;
+		z-index: 50;
+		border-left: none;
+		border-top: 1px solid #333;
+		border-radius: 12px 12px 0 0;
+		transition: transform 0.25s ease;
+	}
+
+	.panel-right.mobile-bottom-sheet.mobile-open {
+		transform: translateY(0);
+	}
+
+	.panel-right.mobile-bottom-sheet.mobile-closed {
+		transform: translateY(100%);
+		pointer-events: none;
+	}
+
+	.mobile-toolbar {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: 56px;
+		background: #1a1a1a;
+		border-top: 1px solid #333;
+		display: flex;
+		align-items: center;
+		justify-content: space-around;
+		z-index: 60;
+		padding: 0 4px;
+	}
+
+	.mobile-tb-btn {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+		padding: 6px 8px;
+		background: none;
+		border: none;
+		color: #888;
+		font-size: 10px;
+		cursor: pointer;
+		min-width: 48px;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.mobile-tb-btn.active {
+		color: #ff6b35;
+	}
+
+	.mobile-tb-btn:active {
+		color: #ff6b35;
+	}
+
+	@media (max-width: 768px) {
+		.builder-root {
+			height: calc(100vh - 28px - 56px);
+		}
+
+		.canvas-controls {
+			bottom: 12px;
+			right: 8px;
+		}
 	}
 </style>

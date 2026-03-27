@@ -1,4 +1,4 @@
-import { writable, get } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { Node, Edge, Viewport } from '@xyflow/svelte';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -91,6 +91,13 @@ export const currentBoardId = writable<string | null>(null);
 // Selected node for Info Panel
 export const selectedNodeId = writable<string | null>(null);
 export const selectedNodeData = writable<PedalNodeData | null>(null);
+
+// Multi-selection: derived from nodes store
+export const selectedNodes = derived(nodes, ($nodes) =>
+	$nodes.filter((n) => n.selected && n.type !== 'boardNode') as PedalNode[]
+);
+
+export const selectedNodeCount = derived(selectedNodes, ($sel) => $sel.length);
 
 // ── Snap Grid state ───────────────────────────────────────────────────────────
 
@@ -318,6 +325,24 @@ export function rotateSelectedNode(): void {
 			// Also update selectedNodeData
 			selectedNodeData.set(updated.data);
 			return updated;
+		});
+	});
+
+	pushHistory(get(nodes), get(edges));
+}
+
+/** Rotate ALL selected pedal nodes by 90° */
+export function rotateAllSelected(): void {
+	const selected = get(selectedNodes);
+	if (selected.length === 0) return;
+
+	const ids = new Set(selected.map((n) => n.id));
+	nodes.update((ns): CanvasNode[] => {
+		return ns.map((n) => {
+			if (!ids.has(n.id) || n.type === 'boardNode') return n;
+			const pedalData = n.data as PedalNodeData;
+			const nextRot = ((pedalData.rotation ?? 0) + 90) % 360;
+			return { ...n, data: { ...pedalData, rotation: nextRot } } as PedalNode;
 		});
 	});
 

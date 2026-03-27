@@ -6,7 +6,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const supabase = createSupabaseServerClient(cookies);
 
 	const brand = url.searchParams.get('brand');
-	const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10), 200);
+	const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 1000);
 	const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10), 0);
 
 	let query = supabase
